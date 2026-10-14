@@ -1,0 +1,74 @@
+# OpenTelemetry Collector config for Satark. Carries over Nidan's trace
+# pipeline (OTLP in -> batch -> PII redaction -> Jaeger) unchanged, and adds
+# TWO new things:
+#
+#   1. A second trace exporter, otlp/langfuse, active only when the
+#      `langfuse` Compose profile is running. This is the concrete "same
+#      telemetry, two backends" fan-out M4 asks you to notice: Jaeger reads
+#      span-shape (what Nidan was built around); Langfuse reads GenAI-aware
+#      views (cost-by-model, latency-by-tool, a built-in eval UI) from the
+#      exact same spans, no second instrumentation pass required. If the
+#      langfuse profile isn't running, this exporter just logs connection
+#      errors on retry - harmless, and worth noticing: THAT noise, not a
+#      crash, is what "self-hosted against managed" actually costs you
+#      operationally even when nothing is technically broken.
+#
+#   2. A metrics pipeline, OTLP in -> batch -> a Prometheus exporter this
+#      Collector exposes on :8889/metrics for Prometheus to scrape. app.py
+#      never talks to Prometheus directly - metrics.py exports over OTLP to
+#      THIS collector, same as traces do, which is the point: one ingestion
+#      path, two signal types, fanned out to different backends per signal.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 50
+  # Belt-and-braces redaction at the Collector layer, IN ADDITION TO the
+  # redaction already done in genai_conventions.safe_prompt_attribute before
+  # a span is even created - two layers because app code mistakes happen.
+  attributes/redact_pii:
+    actions:
+      - key: gen_ai.prompt.last_user_message
+        action: hash
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Self-hosted Langfuse ingests OTLP directly at /api/public/otel, using
+  # HTTP Basic Auth with your Langfuse public/secret key pair base64-
+  # encoded into the Authorization header. Set LANGFUSE_AUTH_HEADER in
+  # .env (see .env.example) to "Basic <base64(public_key:secret_key)>".
+  # Only reached when the `langfuse` Compose profile is up.
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      Authorization: "${env:LANGFUSE_AUTH_HEADER}"
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, attributes/redact_pii]
+      exporters: [otlp/jaeger, otlphttp/langfuse, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]

@@ -1,0 +1,77 @@
+{
+  "title": "Satark - Agent Health",
+  "uid": "satark-agent-health",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1, "title": "Request rate", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_requests_total[5m]))", "legendFormat": "requests/sec", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2, "title": "Outcome / trajectory failure rate", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_outcome_failures_total[5m]))", "legendFormat": "outcome failures/sec", "refId": "A" },
+        { "expr": "sum(rate(satark_trajectory_failures_total[5m]))", "legendFormat": "trajectory failures/sec", "refId": "B" }
+      ]
+    },
+    {
+      "id": 3, "title": "Latency - p50 / p95 (ms)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(satark_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(satark_request_duration_ms_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" }
+      ]
+    },
+    {
+      "id": 4, "title": "Cost per hour (USD)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_request_cost_usd_sum[5m])) * 3600", "legendFormat": "USD/hour", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5, "title": "Mean cost per call (USD) - the fastest incident-5 signal", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_request_cost_usd_sum[5m])) / sum(rate(satark_request_cost_usd_count[5m]))", "legendFormat": "mean cost/call", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6, "title": "Online-eval score (sampled, 1-5)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 1, "max": 5 }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_eval_score_sum[15m])) / sum(rate(satark_eval_score_count[15m]))", "legendFormat": "mean judge score", "refId": "A" }
+      ]
+    },
+    {
+      "id": 7, "title": "Drift score (output embeddings vs baseline)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_drift_score_sum{satark_drift_dimension=\"output\"}[15m])) / sum(rate(satark_drift_score_count{satark_drift_dimension=\"output\"}[15m]))", "legendFormat": "embedding drift", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8, "title": "Guardrail / refusal trigger rate", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(satark_guardrail_triggers_total[5m]))", "legendFormat": "guardrail triggers/sec", "refId": "A" }
+      ]
+    }
+  ]
+}

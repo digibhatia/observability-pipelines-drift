@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: satark
+    orgId: 1
+    folder: "Satark"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
